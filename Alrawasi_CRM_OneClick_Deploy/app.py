@@ -71,7 +71,7 @@ def scoped_company(d,cid):
  u=current_user(d); cond,args=specialty_scope(u,'c')
  return d.execute(f'SELECT c.*,u.name rep FROM companies c LEFT JOIN users u ON u.id=c.assigned_user_id WHERE c.id=? AND {cond}',[cid]+args).fetchone()
 def can_add_companies(user):
- return bool(user and ((user['specialty'] or 'general')=='advertising' or user['role']=='admin'))
+ return True
 
 def wa_text(user_row, company_name):
  specialty=(user_row['specialty'] or 'general') if user_row else 'general'; template=(user_row['whatsapp_template'] or '').strip() if user_row else ''
@@ -228,37 +228,30 @@ def import_companies():
 @login_required
 def export():
  d=db(); me=current_user(d); cond,args=specialty_scope(me,'companies'); rows=d.execute('SELECT * FROM companies WHERE '+cond+' ORDER BY id',args).fetchall(); out=io.StringIO(); w=csv.writer(out); w.writerow(rows[0].keys() if rows else ['id']); [w.writerow(list(r)) for r in rows]; d.close(); return Response('\ufeff'+out.getvalue(),mimetype='text/csv',headers={'Content-Disposition':'attachment; filename=companies.csv'})
-if __name__=='__main__': app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)))
-
 
 @app.post('/company/<int:company_id>/delete')
+@admin_required
 def delete_company(company_id):
- if 'uid' not in session:
-  return redirect(url_for('login'))
  d=db()
- company=d.execute('SELECT id, name FROM companies WHERE id=?',(company_id,)).fetchone()
- if not company:
-  d.close()
-  flash('الشركة غير موجودة.')
-  return redirect(url_for('companies'))
+ c=d.execute('SELECT id,name_ar,name_en FROM companies WHERE id=?',(company_id,)).fetchone()
+ if not c:
+  d.close(); flash('الشركة غير موجودة.'); return redirect(url_for('companies'))
  try:
   d.execute('BEGIN IMMEDIATE')
-  # Remove dependent CRM records first to avoid orphan records / FK issues.
-  d.execute('DELETE FROM interactions WHERE company_id=?',(company_id,))
-  # Delete from any optional tables that reference company_id.
-  optional_tables = ['followups', 'follow_ups', 'notes', 'tasks']
-  existing={r['name'] for r in d.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
-  for table in optional_tables:
-   if table in existing:
-    cols={r['name'] for r in d.execute(f'PRAGMA table_info({table})').fetchall()}
-    if 'company_id' in cols:
-     d.execute(f'DELETE FROM {table} WHERE company_id=?',(company_id,))
+  # Delete dependent rows from every table that has a company_id column.
+  tables=[r['name'] for r in d.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()]
+  for table in tables:
+   if table=='companies': continue
+   cols={r['name'] for r in d.execute(f'PRAGMA table_info("{table}")').fetchall()}
+   if 'company_id' in cols:
+    d.execute(f'DELETE FROM "{table}" WHERE company_id=?',(company_id,))
   d.execute('DELETE FROM companies WHERE id=?',(company_id,))
   d.commit()
-  flash('تم حذف الشركة وجميع سجلات التواصل المرتبطة بها نهائياً.')
+  flash('تم حذف الشركة وجميع السجلات المرتبطة بها نهائياً.')
  except Exception:
-  d.rollback()
-  raise
+  d.rollback(); raise
  finally:
   d.close()
  return redirect(url_for('companies'))
+
+if __name__=='__main__': app.run(host='0.0.0.0',port=int(os.environ.get('PORT',5000)))
