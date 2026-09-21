@@ -7,10 +7,7 @@
 
 
 {% if is_admin %}
-<form method="post" action="{{ url_for('sync_muqawil_admin') }}" style="display:inline-block">
- <button class="btn btn-outline-primary" type="submit"
-   onclick="this.disabled=true;this.form.submit();">تحديث بيانات مقاول</button>
-</form>
+<a class="btn btn-outline-primary mb-2" href="{{ url_for('import_muqawil_json') }}">تحديث بيانات مقاول</a>
 {% endif %}
 <div class="d-flex justify-content-between align-items-center mb-3"><h2>العملاء <small class="text-muted">({{total}})</small></h2><div>{% if my_specialty=='contracting' %}<span class="badge bg-primary">شركات المقاولات فقط</span>{% else %}<span class="badge bg-success">جميع الشركات</span>{% endif %}{% if can_add %} <a class="btn btn-sm btn-dark" href="/companies/add">+ إضافة شركة</a> <a class="btn btn-sm btn-outline-dark" href="/companies/import">استيراد ملف</a>{% endif %}</div></div><form class="card p-3 mb-3"><div class="row g-2"><div class="col-md-4"><input class="form-control" name="q" value="{{q}}" placeholder="اسم الشركة، الهاتف، البريد..."></div><div class="col-md-2"><select class="form-select" name="city"><option value="">كل المدن</option>{% for x in cities %}<option {% if city==x.city %}selected{% endif %}>{{x.city}}</option>{% endfor %}</select></div><div class="col-md-2"><select class="form-select" name="status"><option value="">كل الحالات</option>{% for k,v in status.items() %}<option value="{{k}}" {% if status_filter==k %}selected{% endif %}>{{v}}</option>{% endfor %}</select></div><div class="col-md-2"><select class="form-select" name="classification">
 <option value="" {% if not classification_filter %}selected{% endif %}>المصنفة وغير المصنفة</option>
@@ -43,11 +40,11 @@
    <hr>
    <div class="row small mb-3">
     <div class="col-6"><b>حالة العميل:</b> {{r.marketing_status or 'جديد'}}</div>
-    <div class="col-6"><b>المندوب:</b> {{r.salesperson_name or 'غير معين'}}</div>
+    <div class="col-6"><b>المندوب:</b> {{r.rep or 'غير معين'}}</div>
    </div>
    <div class="d-flex flex-wrap gap-2">
     <a class="btn btn-sm btn-dark" href="/companies/{{r.id}}">فتح الشركة</a>
-    {% if r.phone %}<a class="btn btn-sm btn-success" href="https://wa.me/{{r.phone|replace(' ','')|replace('+','')}}">واتساب</a>{% endif %}
+    {% if r.wa_link %}<a class="btn btn-sm btn-success" target="_blank" href="{{r.wa_link}}">واتساب</a>{% endif %}
     {% if r.latitude and r.longitude %}
      <a class="btn btn-sm btn-outline-primary" target="_blank" href="https://www.google.com/maps/search/?api=1&query={{r.latitude}},{{r.longitude}}">الخريطة</a>
     {% elif r.address or r.city %}
@@ -60,4 +57,5 @@
 </div>
 {% endfor %}
 </div>
+{% if is_admin %}</form>{% endif %}
 {% if page>1 %}<li class="page-item"><a class="page-link" href="?q={{q}}&city={{city}}&status={{status_filter}}&rep={{rep_filter}}&classification={{classification_filter}}&page={{page-1}}">السابق</a></li>{% endif %}<li class="page-item disabled"><span class="page-link">صفحة {{page}}</span></li>{% if page*per<total %}<li class="page-item"><a class="page-link" href="?q={{q}}&city={{city}}&status={{status_filter}}&rep={{rep_filter}}&classification={{classification_filter}}&page={{page+1}}">التالي</a></li>{% endif %}</ul></nav>{% endblock %}

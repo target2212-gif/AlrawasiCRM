@@ -237,8 +237,8 @@ def sync_muqawil(max_pages=8):
 @app.post('/admin/sync-muqawil')
 @admin_required
 def admin_sync_muqawil():
- flash('تم إيقاف المزامنة المباشرة من Render لأن منصة مقاول ترفض الاتصال الآلي (HTTP 403). استخدم تحديث ملف مقاول JSON.')
- return redirect(url_for('companies'))
+ flash('المزامنة المباشرة متوقفة بسبب HTTP 403. استخدم صفحة تحديث بيانات مقاول JSON.')
+ return redirect(url_for('import_muqawil_json'))
 
 @app.post('/internal/sync-muqawil')
 def sync_muqawil_internal():
