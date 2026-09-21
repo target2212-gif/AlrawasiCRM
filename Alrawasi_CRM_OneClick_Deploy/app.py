@@ -314,11 +314,22 @@ def company(cid):
 def update_company(cid):
  d=db(); c=scoped_company(d,cid)
  if not c: d.close(); abort(404)
+ new_status=(request.form.get('marketing_status') or '').strip()
+ priority=request.form.get('priority','normal')
+ notes=(request.form.get('marketing_notes') or '').strip()
  if session.get('role')=='admin':
   assigned=request.form.get('assigned_user_id') or None
-  d.execute('UPDATE companies SET marketing_status=?,assigned_user_id=?,priority=?,marketing_notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',(request.form['marketing_status'],assigned,request.form.get('priority','normal'),request.form.get('marketing_notes',''),cid))
+  d.execute('UPDATE companies SET marketing_status=?,assigned_user_id=?,priority=?,marketing_notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',
+            (new_status,assigned,priority,notes,cid))
  else:
-  d.execute('UPDATE companies SET marketing_status=?,priority=?,marketing_notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',(request.form['marketing_status'],request.form.get('priority','normal'),request.form.get('marketing_notes',''),cid)); d.commit(); d.close(); return redirect(url_for('company',cid=cid))
+  d.execute('UPDATE companies SET marketing_status=?,priority=?,marketing_notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?',
+            (new_status,priority,notes,cid))
+ # سجل كل تحديث للحالة داخل سجل التواصل الحالي مع اسم المستخدم المرتبط به.
+ if new_status:
+  d.execute('INSERT INTO interactions(company_id,user_id,channel,outcome,notes) VALUES(?,?,?,?,?)',
+            (cid,session['uid'],'تحديث حالة العميل',new_status,notes))
+ d.commit(); d.close()
+ return redirect(url_for('company',cid=cid))
 
 @app.post('/company/<int:cid>/interaction')
 @login_required
