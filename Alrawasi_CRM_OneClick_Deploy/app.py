@@ -1,4 +1,4 @@
-APP_VERSION='7.5.1'
+APP_VERSION='7.5.2'
 import urllib.request, urllib.error
 import tempfile
 from flask import Flask,request,redirect,url_for,render_template,session,flash,jsonify,abort,Response, send_file
