@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CRM تلال الرواسي</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+:root{
+ --crm-bg:#f5f6f8;--crm-card:#ffffff;--crm-text:#212529;--crm-heading:#111827;
+ --crm-border:#dee2e6;--crm-nav:#111827;--crm-scale:1;
+}
+html{font-size:calc(16px * var(--crm-scale));}
+body{background:var(--crm-bg)!important;color:var(--crm-text)!important;min-height:100vh}
+.navbar{background:var(--crm-nav)!important}.card{background-color:var(--crm-card);color:var(--crm-text);border:1px solid var(--crm-border)!important;box-shadow:0 2px 10px #0000000d}
+h1,h2,h3,h4,h5,h6,.h1,.h2,.h3,.h4,.h5,.h6{color:var(--crm-heading)}
+.form-control,.form-select{font-size:1rem}.btn{font-size:.95rem}.small,small{font-size:.875em!important}
+.stat{font-size:1.7rem;font-weight:700}.table td,.table th{vertical-align:middle}.ltr{direction:ltr;unicode-bidi:plaintext}
+.status-badge{display:inline-block;padding:.35rem .65rem;border-radius:999px;font-weight:700;font-size:.82rem}
+tr.status-new{background:#fff!important}.status-badge.status-new{background:#e9ecef;color:#343a40}
+tr.status-contacted{background:#e7f1ff!important}.status-badge.status-contacted{background:#0d6efd;color:#fff}
+tr.status-interested{background:#fff3cd!important}.status-badge.status-interested{background:#ffc107;color:#212529}
+tr.status-quote-requested{background:#f3e8ff!important}.status-badge.status-quote-requested{background:#6f42c1;color:#fff}
+tr.status-quote-sent{background:#e2d9f3!important}.status-badge.status-quote-sent{background:#59359a;color:#fff}
+tr.status-followup{background:#cff4fc!important}.status-badge.status-followup{background:#0dcaf0;color:#073642}
+tr.status-contracted{background:#d1e7dd!important}.status-badge.status-contracted{background:#198754;color:#fff}
+tr.status-not-interested{background:#f8d7da!important}.status-badge.status-not-interested{background:#dc3545;color:#fff}
+tr.status-unreachable{background:#e9ecef!important}.status-badge.status-unreachable{background:#6c757d;color:#fff}
+tr.status-postponed{background:#ffe5d0!important}.status-badge.status-postponed{background:#fd7e14;color:#fff}
+.accessibility-panel{position:fixed;z-index:2000;top:72px;left:18px;width:min(390px,calc(100vw - 36px));background:var(--crm-card);color:var(--crm-text);border:2px solid var(--crm-border);border-radius:14px;padding:16px;box-shadow:0 12px 35px rgba(0,0,0,.25);display:none}
+.accessibility-panel.open{display:block}.appearance-color{width:52px;height:38px;padding:2px}.scale-value{min-width:62px;text-align:center;font-weight:700}.appearance-preview{border:1px solid var(--crm-border);background:var(--crm-card);border-radius:10px;padding:10px}
+
+/* V7.5.3: عناصر متوافقة مع الألوان المخصصة والوضع الداكن */
+.text-muted{color:color-mix(in srgb,var(--crm-text) 72%,transparent)!important}
+.card .text-muted,.card small,.card .small{color:color-mix(in srgb,var(--crm-text) 76%,transparent)!important}
+.crm-number{color:var(--crm-text)!important;background:var(--crm-card)!important;border-color:var(--crm-border)!important}
+.card hr{border-color:var(--crm-border);opacity:.7}
+.btn-outline-dark{color:var(--crm-text);border-color:var(--crm-text)}
+.btn-outline-dark:hover{background:var(--crm-text);color:var(--crm-card)}
+.btn-outline-secondary{color:var(--crm-text);border-color:var(--crm-border)}
+.btn-outline-secondary:hover{background:var(--crm-border);color:var(--crm-text)}
+.btn:disabled,.btn.disabled{opacity:.62;color:var(--crm-text)!important;border-color:var(--crm-border)!important}
+.page-link{background:var(--crm-card);border-color:var(--crm-border);color:var(--crm-text)}
+.page-item.disabled .page-link{background:var(--crm-bg);color:var(--crm-text);opacity:.75}
+.table{--bs-table-bg:var(--crm-card);--bs-table-color:var(--crm-text);--bs-table-border-color:var(--crm-border)}
+.form-control,.form-select{background-color:#fff;color:#111827;border-color:#aab2bd}
+.form-control::placeholder{color:#667085;opacity:1}
+.appearance-preview,.accessibility-panel{background:var(--crm-card)!important;color:var(--crm-text)!important}
+</style>
+</head>
+<body>
+<nav class="navbar navbar-dark mb-4"><div class="container-fluid"><a class="navbar-brand" href="/">تلال الرواسي CRM <small style="font-size:.62em;opacity:.75">V7.5.3</small></a>{% if user %}<div class="d-flex gap-2 align-items-center text-white flex-wrap"><a class="btn btn-sm btn-outline-light" href="/companies">الشركات</a><a class="btn btn-sm btn-outline-light" href="/export">تصدير</a>{% if session.role=='admin' %}<a class="btn btn-sm btn-outline-light" href="/users">المستخدمون</a>{% endif %}<button type="button" class="btn btn-sm btn-outline-light" id="appearanceBtn"><i class="bi bi-eye"></i> المظهر والرؤية</button><span>{{user}}</span><a class="btn btn-sm btn-light" href="/logout">خروج</a></div>{% endif %}</div></nav>
+
+{% if user %}
+<div id="appearancePanel" class="accessibility-panel" aria-label="إعدادات المظهر والرؤية">
+ <div class="d-flex justify-content-between align-items-center mb-3"><h5 class="mb-0">إعدادات المظهر والرؤية</h5><button class="btn-close" id="appearanceClose" aria-label="إغلاق"></button></div>
+ <div class="row g-3">
+  <div class="col-8"><label class="form-label">لون خلفية النظام</label></div><div class="col-4 text-start"><input id="bgColor" class="form-control form-control-color appearance-color" type="color" value="#f5f6f8"></div>
+  <div class="col-8"><label class="form-label">لون بطاقات الشركات</label></div><div class="col-4 text-start"><input id="cardColor" class="form-control form-control-color appearance-color" type="color" value="#ffffff"></div>
+  <div class="col-8"><label class="form-label">لون النص</label></div><div class="col-4 text-start"><input id="textColor" class="form-control form-control-color appearance-color" type="color" value="#212529"></div>
+  <div class="col-8"><label class="form-label">لون العناوين</label></div><div class="col-4 text-start"><input id="headingColor" class="form-control form-control-color appearance-color" type="color" value="#111827"></div>
+ </div>
+ <hr>
+ <label class="form-label fw-bold">حجم العرض والنص</label>
+ <div class="d-flex align-items-center gap-2 mb-2">
+  <button type="button" class="btn btn-outline-secondary" id="scaleDown">−</button>
+  <input type="range" class="form-range flex-grow-1" id="scaleRange" min="85" max="160" step="5" value="100">
+  <button type="button" class="btn btn-outline-secondary" id="scaleUp">+</button>
+  <span id="scaleValue" class="scale-value">100%</span>
+ </div>
+ <div class="small text-muted mb-3">يمكن التكبير من 85% إلى 160%. يؤثر على النصوص والأزرار وحقول الإدخال لتسهيل القراءة.</div>
+ <div class="d-grid gap-2">
+  <button type="button" class="btn btn-dark" id="darkPreset"><i class="bi bi-moon-stars"></i> وضع داكن عالي الوضوح</button>
+  <button type="button" class="btn btn-outline-secondary" id="softPreset">خلفية مريحة للعين</button>
+  <button type="button" class="btn btn-outline-danger" id="resetAppearance">العودة لمظهر المدير الافتراضي</button>
+ </div>
+ <div class="appearance-preview mt-3">معاينة: <b>نص واضح</b> — هذه إعداداتك الشخصية. يمكنك العودة في أي وقت إلى المظهر الافتراضي الذي حدده المدير.</div>
+</div>
+{% endif %}
+
+<main class="container pb-5">{% with messages=get_flashed_messages() %}{% for m in messages %}<div class="alert alert-warning">{{m}}</div>{% endfor %}{% endwith %}{% block content %}{% endblock %}</main>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+{% if user %}
+<script>
+(()=>{
+ const KEY='alrawasiAppearance:v1:{{ session.get("uid", "guest") }}';
+ const systemDefaults={bg:'#f5f6f8',card:'#ffffff',text:'#212529',heading:'#111827',border:'#dee2e6',nav:'#111827',scale:100};
+ const adminDefaults=Object.assign({},systemDefaults,{{ appearance_default|default({})|tojson }});
+ const defaults=adminDefaults;
+ const root=document.documentElement;
+ const $=id=>document.getElementById(id);
+ function safeLoad(){try{return Object.assign({},defaults,JSON.parse(localStorage.getItem(KEY)||'{}'))}catch(e){return {...defaults}}}
+ let s=safeLoad();
+ function apply(save=true){
+   root.style.setProperty('--crm-bg',s.bg);root.style.setProperty('--crm-card',s.card);root.style.setProperty('--crm-text',s.text);
+   root.style.setProperty('--crm-heading',s.heading);root.style.setProperty('--crm-border',s.border);root.style.setProperty('--crm-nav',s.nav);
+   root.style.setProperty('--crm-scale',(Number(s.scale)||100)/100);
+   $('bgColor').value=s.bg;$('cardColor').value=s.card;$('textColor').value=s.text;$('headingColor').value=s.heading;
+   $('scaleRange').value=s.scale;$('scaleValue').textContent=s.scale+'%';
+   if(save) localStorage.setItem(KEY,JSON.stringify(s));
+ }
+ apply(false);
+ $('appearanceBtn').onclick=()=>$('appearancePanel').classList.toggle('open');
+ $('appearanceClose').onclick=()=>$('appearancePanel').classList.remove('open');
+ $('bgColor').oninput=e=>{s.bg=e.target.value;apply()}; $('cardColor').oninput=e=>{s.card=e.target.value;apply()};
+ $('textColor').oninput=e=>{s.text=e.target.value;apply()}; $('headingColor').oninput=e=>{s.heading=e.target.value;apply()};
+ $('scaleRange').oninput=e=>{s.scale=Number(e.target.value);apply()};
+ $('scaleDown').onclick=()=>{s.scale=Math.max(85,(Number(s.scale)||100)-5);apply()};
+ $('scaleUp').onclick=()=>{s.scale=Math.min(160,(Number(s.scale)||100)+5);apply()};
+ $('darkPreset').onclick=()=>{s={...s,bg:'#111827',card:'#1f2937',text:'#f9fafb',heading:'#ffffff',border:'#4b5563',nav:'#030712'};apply()};
+ $('softPreset').onclick=()=>{s={...s,bg:'#e8eef2',card:'#f8fafc',text:'#17202a',heading:'#0f172a',border:'#b8c2cc',nav:'#1f2937'};apply()};
+ $('resetAppearance').onclick=()=>{s={...adminDefaults};apply()};
+})();
+</script>
+{% endif %}
+</body></html>
