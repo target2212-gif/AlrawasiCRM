@@ -1,0 +1,19 @@
+{% extends 'base.html' %}{% block content %}
+<h2>حماية البيانات — Render Free</h2>
+<div class="alert alert-warning">
+هذه الخدمة تعمل بدون Persistent Disk. البيانات تحفظ أثناء عمل الحاوية، لكن أي Deploy/إعادة إنشاء للحاوية قد يعيدها إلى النسخة المرجعية المضمنة في هذا الإصدار.
+</div>
+<div class="card p-3 mb-3">
+<h4>1) تنزيل نسخة JSON الحالية</h4>
+<p>نفّذها بعد كل مجموعة تعديلات مهمة وقبل أي Deploy.</p>
+<a class="btn btn-success" href="{{url_for('export_json_snapshot')}}">تنزيل Snapshot JSON الآن</a>
+</div>
+<div class="card p-3">
+<h4>2) استعادة Snapshot JSON</h4>
+<p>الاستعادة كاملة. ينشئ النظام نسخة SQLite قبل التنفيذ ثم يستبدل جداول CRM بمحتوى الـSnapshot.</p>
+<form method="post" enctype="multipart/form-data" action="{{url_for('restore_json_snapshot')}}">
+<input class="form-control mb-2" type="file" name="snapshot" accept=".json" required>
+<button class="btn btn-danger" type="submit" onclick="return confirm('سيتم استبدال بيانات CRM الحالية بمحتوى Snapshot. هل أنت متأكد؟')">استعادة Snapshot JSON</button>
+</form>
+</div>
+{% endblock %}
