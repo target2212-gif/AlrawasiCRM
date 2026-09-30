@@ -1,8 +1,0 @@
-services:
-  crm:
-    build: .
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./crm.db:/app/crm.db
-    restart: unless-stopped
