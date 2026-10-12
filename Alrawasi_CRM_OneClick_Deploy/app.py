@@ -95,6 +95,9 @@ def ensure_schema():
   icols={r['name'] for r in d.execute('PRAGMA table_info(interactions)').fetchall()}
   if 'user_name_snapshot' not in icols: d.execute("ALTER TABLE interactions ADD COLUMN user_name_snapshot TEXT")
   if 'remote_event_id' not in icols: d.execute("ALTER TABLE interactions ADD COLUMN remote_event_id TEXT")
+  # Immutable facts about the actor when the event was recorded. NULL = unverified legacy.
+  if 'specialty_at_contact' not in icols: d.execute("ALTER TABLE interactions ADD COLUMN specialty_at_contact TEXT")
+  if 'actor_email_at_contact' not in icols: d.execute("ALTER TABLE interactions ADD COLUMN actor_email_at_contact TEXT")
   d.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_interactions_remote_event ON interactions(remote_event_id) WHERE remote_event_id IS NOT NULL AND remote_event_id<>''")
   d.execute("UPDATE interactions SET user_name_snapshot=(SELECT name FROM users WHERE users.id=interactions.user_id) WHERE (user_name_snapshot IS NULL OR user_name_snapshot='') AND user_id IS NOT NULL")
   ccols={r['name'] for r in d.execute('PRAGMA table_info(companies)').fetchall()}
@@ -153,6 +156,7 @@ def _ledger_ensure_schema():
       company_name TEXT NOT NULL DEFAULT '',
       user_email TEXT NOT NULL DEFAULT '',
       user_name_snapshot TEXT NOT NULL DEFAULT '',
+      specialty_at_contact TEXT,
       channel TEXT NOT NULL DEFAULT '',
       outcome TEXT NOT NULL DEFAULT '',
       notes TEXT NOT NULL DEFAULT '',
@@ -163,6 +167,8 @@ def _ledger_ensure_schema():
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
    """)
+   # Additive migration only: preserve old events and leave historical specialty unknown.
+   cur.execute("ALTER TABLE alrawasi_contact_events ADD COLUMN IF NOT EXISTS specialty_at_contact TEXT")
    cur.execute("CREATE INDEX IF NOT EXISTS idx_alrawasi_contact_company ON alrawasi_contact_events(company_key,contacted_at)")
   p.commit()
 
@@ -195,20 +201,20 @@ def _ledger_put(event,preserve_existing=False):
     cur.execute("""
      INSERT INTO alrawasi_contact_events(
       event_id,company_key,company_name,user_email,user_name_snapshot,
-      channel,outcome,notes,contacted_at,next_followup_at,deleted
-     ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,FALSE)
+      channel,outcome,notes,contacted_at,next_followup_at,specialty_at_contact,deleted
+     ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,FALSE)
      ON CONFLICT(event_id) DO NOTHING
     """,(
      event['event_id'],event['company_key'],event['company_name'],event['user_email'],
      event['user_name_snapshot'],event['channel'],event['outcome'],event['notes'],
-     event['contacted_at'],event.get('next_followup_at')
+     event['contacted_at'],event.get('next_followup_at'),event.get('specialty_at_contact')
     ))
    else:
     cur.execute("""
      INSERT INTO alrawasi_contact_events(
       event_id,company_key,company_name,user_email,user_name_snapshot,
-      channel,outcome,notes,contacted_at,next_followup_at,deleted
-     ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,FALSE)
+      channel,outcome,notes,contacted_at,next_followup_at,specialty_at_contact,deleted
+     ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,FALSE)
      ON CONFLICT(event_id) DO UPDATE SET
       company_key=EXCLUDED.company_key,
       company_name=EXCLUDED.company_name,
@@ -219,12 +225,13 @@ def _ledger_put(event,preserve_existing=False):
       notes=EXCLUDED.notes,
       contacted_at=EXCLUDED.contacted_at,
       next_followup_at=EXCLUDED.next_followup_at,
+      specialty_at_contact=COALESCE(alrawasi_contact_events.specialty_at_contact, EXCLUDED.specialty_at_contact),
       deleted=FALSE,
       updated_at=NOW()
     """,(
      event['event_id'],event['company_key'],event['company_name'],event['user_email'],
      event['user_name_snapshot'],event['channel'],event['outcome'],event['notes'],
-     event['contacted_at'],event.get('next_followup_at')
+     event['contacted_at'],event.get('next_followup_at'),event.get('specialty_at_contact')
     ))
   p.commit()
 
@@ -255,6 +262,7 @@ def _local_event_payload(d,row):
   'company_name':(c['name_ar'] or '') if c else '',
   'user_email':(u['email'] or '') if u else '',
   'user_name_snapshot':row['user_name_snapshot'] or ((u['name'] or '') if u else ''),
+  'specialty_at_contact':row['specialty_at_contact'] if 'specialty_at_contact' in row.keys() else None,
   'channel':row['channel'] or '',
   'outcome':row['outcome'] or '',
   'notes':row['notes'] or '',
@@ -292,7 +300,7 @@ def sync_contact_ledger():
   with p.cursor() as cur:
    cur.execute("""
     SELECT event_id,company_key,company_name,user_email,user_name_snapshot,
-           channel,outcome,notes,contacted_at,next_followup_at,deleted
+           channel,outcome,notes,contacted_at,next_followup_at,deleted,specialty_at_contact
     FROM alrawasi_contact_events
     ORDER BY contacted_at,event_id
    """)
@@ -303,7 +311,7 @@ def sync_contact_ledger():
   d.execute('BEGIN IMMEDIATE')
   latest_by_company={}
   for r in remote:
-   event_id,company_key,company_name,user_email,user_name,channel,outcome,notes,contacted_at,next_followup,deleted=r
+   event_id,company_key,company_name,user_email,user_name,channel,outcome,notes,contacted_at,next_followup,deleted,event_specialty=r
    existing=d.execute("SELECT id FROM interactions WHERE remote_event_id=?",(event_id,)).fetchone()
    if deleted:
     if existing: d.execute("DELETE FROM interactions WHERE id=?",(existing['id'],))
@@ -328,10 +336,15 @@ def sync_contact_ledger():
    if not existing:
     d.execute("""INSERT INTO interactions(
       company_id,user_id,user_name_snapshot,channel,outcome,notes,
-      contacted_at,next_followup_at,remote_event_id
-     ) VALUES(?,?,?,?,?,?,?,?,?)""",
+      contacted_at,next_followup_at,remote_event_id,specialty_at_contact,actor_email_at_contact
+     ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
      (c['id'],uid,user_name or '',channel or '',outcome or '',notes or '',
-      contacted_at,next_followup,event_id))
+      contacted_at,next_followup,event_id,event_specialty,user_email or None))
+   elif event_specialty or user_email:
+    d.execute("""UPDATE interactions SET
+      specialty_at_contact=COALESCE(NULLIF(specialty_at_contact,''),?),
+      actor_email_at_contact=COALESCE(NULLIF(actor_email_at_contact,''),?)
+      WHERE id=?""",(event_specialty,user_email or None,existing['id']))
    prev=latest_by_company.get(c['id'])
    if not prev or str(contacted_at or '')>=str(prev[0] or ''):
     latest_by_company[c['id']]=(contacted_at,outcome)
@@ -345,7 +358,7 @@ def sync_contact_ledger():
  return True
 
 def _save_interaction_durable(d,c,cid,channel,outcome,notes,next_followup):
- user=d.execute("SELECT email,name FROM users WHERE id=?",(session['uid'],)).fetchone()
+ user=d.execute("SELECT email,name,specialty FROM users WHERE id=?",(session['uid'],)).fetchone()
  contacted_at=d.execute("SELECT CURRENT_TIMESTAMP").fetchone()[0]
  event={
   'event_id':uuid.uuid4().hex,
@@ -353,6 +366,7 @@ def _save_interaction_durable(d,c,cid,channel,outcome,notes,next_followup):
   'company_name':c['name_ar'] or '',
   'user_email':(user['email'] or '') if user else '',
   'user_name_snapshot':session.get('name','') or ((user['name'] or '') if user else ''),
+  'specialty_at_contact':(user['specialty'] or 'general') if user else 'general',
   'channel':channel or '',
   'outcome':outcome or '',
   'notes':notes or '',
@@ -363,10 +377,11 @@ def _save_interaction_durable(d,c,cid,channel,outcome,notes,next_followup):
   _ledger_put(event)
  d.execute("""INSERT INTO interactions(
   company_id,user_id,user_name_snapshot,channel,outcome,notes,
-  contacted_at,next_followup_at,remote_event_id
- ) VALUES(?,?,?,?,?,?,?,?,?)""",
+  contacted_at,next_followup_at,remote_event_id,specialty_at_contact,actor_email_at_contact
+ ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
  (cid,session['uid'],event['user_name_snapshot'],event['channel'],event['outcome'],
-  event['notes'],event['contacted_at'],event['next_followup_at'],event['event_id']))
+  event['notes'],event['contacted_at'],event['next_followup_at'],event['event_id'],
+  event['specialty_at_contact'],event['user_email']))
  d.execute("UPDATE companies SET marketing_status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",(event['outcome'],cid))
  d.commit()
  return event
@@ -647,22 +662,30 @@ def company_directory_order_sql(alias='c'):
  {a}.id"""
 
 def dual_department_contact_ids(d,company_ids):
- """Companies with a genuine Contractors contact followed by an Advertising contact."""
+ """Historical, immutable recorded specialties; different actors and chronological order."""
  if not company_ids: return set()
  placeholders=','.join('?' for _ in company_ids)
- # Non-contact status edits and unreachable attempts are not considered contact.
+ # NULL historical specialty is deliberately excluded: it cannot be proven from
+ # the current user's role, which may have changed or been deleted.
  sql=f"""SELECT DISTINCT first.company_id
  FROM interactions first
- JOIN users contractor ON contractor.id=first.user_id AND contractor.specialty='contracting'
  JOIN interactions second ON second.company_id=first.company_id
- JOIN users advertiser ON advertiser.id=second.user_id AND advertiser.specialty='advertising'
  WHERE first.company_id IN ({placeholders})
+   AND first.specialty_at_contact='contracting'
+   AND second.specialty_at_contact='advertising'
    AND COALESCE(first.channel,'') <> 'تحديث حالة العميل'
    AND COALESCE(second.channel,'') <> 'تحديث حالة العميل'
-   AND first.outcome NOT IN ('new','unreachable')
-   AND second.outcome NOT IN ('new','unreachable')
+   AND COALESCE(first.outcome,'') NOT IN ('','new','unreachable')
+   AND COALESCE(second.outcome,'') NOT IN ('','new','unreachable')
    AND (second.contacted_at > first.contacted_at
-        OR (second.contacted_at = first.contacted_at AND second.id > first.id))"""
+        OR (second.contacted_at = first.contacted_at AND second.id > first.id))
+   AND ((COALESCE(first.actor_email_at_contact,'')<>''
+         AND COALESCE(second.actor_email_at_contact,'')<>''
+         AND LOWER(first.actor_email_at_contact)<>LOWER(second.actor_email_at_contact))
+        OR (COALESCE(first.actor_email_at_contact,'')=''
+            AND COALESCE(second.actor_email_at_contact,'')=''
+            AND first.user_id IS NOT NULL AND second.user_id IS NOT NULL
+            AND first.user_id<>second.user_id))"""
  return {r[0] for r in d.execute(sql,company_ids).fetchall()}
 
 @app.get('/companies')
