@@ -27,7 +27,13 @@
 .crm-contacted{background:#eaf6ff!important;border:2px solid #79bff0!important}
 /* Dual-department contact: warm, accessible highlight matching the site's cards. */
 .contractor-card.crm-dual-department{background:#fff1df!important;border:2px solid #e88921!important;box-shadow:0 3px 15px rgba(193,104,22,.12)!important;color:#111827!important}
-.contractor-card.crm-dual-department .text-muted{color:#4b5563!important}
+/* Readable text on highlighted cards; badges and action buttons keep their own colors. */
+.contractor-card.crm-dual-department .card-body{color:#111827!important}
+.contractor-card.crm-dual-department .card-body a.h5{color:#172334!important}
+.contractor-card.crm-dual-department .card-body .row,
+.contractor-card.crm-dual-department .card-body .row b,
+.contractor-card.crm-dual-department .card-body .small:not(.btn):not(.badge){color:#263445!important}
+.contractor-card.crm-dual-department .card-body .text-muted{color:#4b5563!important}
 .crm-dual-department-label{background:#a64b0a!important;color:#fff!important;border:1px solid #873d0a!important}
 
 .crm-interested{background:#edf9f0!important;border:2px solid #79c88d!important}
