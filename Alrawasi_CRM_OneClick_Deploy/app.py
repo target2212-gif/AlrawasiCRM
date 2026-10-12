@@ -646,6 +646,25 @@ def company_directory_order_sql(alias='c'):
  ELSE 0 END,
  {a}.id"""
 
+def dual_department_contact_ids(d,company_ids):
+ """Companies with a genuine Contractors contact followed by an Advertising contact."""
+ if not company_ids: return set()
+ placeholders=','.join('?' for _ in company_ids)
+ # Non-contact status edits and unreachable attempts are not considered contact.
+ sql=f"""SELECT DISTINCT first.company_id
+ FROM interactions first
+ JOIN users contractor ON contractor.id=first.user_id AND contractor.specialty='contracting'
+ JOIN interactions second ON second.company_id=first.company_id
+ JOIN users advertiser ON advertiser.id=second.user_id AND advertiser.specialty='advertising'
+ WHERE first.company_id IN ({placeholders})
+   AND COALESCE(first.channel,'') <> 'تحديث حالة العميل'
+   AND COALESCE(second.channel,'') <> 'تحديث حالة العميل'
+   AND first.outcome NOT IN ('new','unreachable')
+   AND second.outcome NOT IN ('new','unreachable')
+   AND (second.contacted_at > first.contacted_at
+        OR (second.contacted_at = first.contacted_at AND second.id > first.id))"""
+ return {r[0] for r in d.execute(sql,company_ids).fetchall()}
+
 @app.get('/companies')
 @login_required
 def companies():
@@ -674,6 +693,10 @@ def companies():
  page=min(page,total_pages)
  sql="""SELECT c.*,u.name rep,(SELECT i.contacted_at FROM interactions i WHERE i.company_id=c.id ORDER BY i.contacted_at DESC LIMIT 1) last_contact,(SELECT i.next_followup_at FROM interactions i WHERE i.company_id=c.id AND i.next_followup_at IS NOT NULL ORDER BY i.contacted_at DESC LIMIT 1) next_followup FROM companies c LEFT JOIN users u ON u.id=c.assigned_user_id"""+w+" ORDER BY "+company_directory_order_sql('c')+" LIMIT ? OFFSET ?"
  rows=[dict(r) for r in d.execute(sql,args+[per,(page-1)*per]).fetchall()]; [r.update(display_number=((page-1)*per+i)) for i,r in enumerate(rows,1)]
+ # Mark companies actually contacted by Contractors Services and subsequently by Advertising.
+ # Determine this solely from recorded interactions; do not modify the customer's status.
+ dual_ids=dual_department_contact_ids(d,[r['id'] for r in rows])
+ for r in rows: r['dual_department_contact']=r['id'] in dual_ids
  cities=d.execute("SELECT DISTINCT city FROM companies WHERE city IS NOT NULL AND city<>'' ORDER BY city").fetchall()
  me=d.execute('SELECT * FROM users WHERE id=?',(session['uid'],)).fetchone()
  users=d.execute("SELECT id,name FROM users WHERE active=1 ORDER BY name").fetchall() if session.get('role')=='admin' else []
@@ -709,7 +732,7 @@ def company(cid):
  if not c: d.close(); abort(404)
  its=d.execute("SELECT i.*,COALESCE(u.name,i.user_name_snapshot,'مستخدم محذوف') rep FROM interactions i LEFT JOIN users u ON u.id=i.user_id WHERE company_id=? ORDER BY contacted_at DESC",(cid,)).fetchall(); users=d.execute('SELECT * FROM users WHERE active=1').fetchall() if session.get('role')=='admin' else []; me=d.execute('SELECT * FROM users WHERE id=?',(session['uid'],)).fetchone(); ordered_ids=[r['id'] for r in d.execute("SELECT c.id FROM companies c ORDER BY "+company_directory_order_sql('c')).fetchall()]
  display_number=(ordered_ids.index(cid)+1) if cid in ordered_ids else cid
- c=dict(c); c['display_number']=display_number; d.close(); msg=wa_text(me,c['name_ar'] or c['name_en']); link=wa_link(c['whatsapp'] or c['phone_mobile'],msg); mail_link=email_link(c['email'],c['name_ar'] or c['name_en'],msg)
+ c=dict(c); c['display_number']=display_number; c['dual_department_contact']=cid in dual_department_contact_ids(d,[cid]); d.close(); msg=wa_text(me,c['name_ar'] or c['name_en']); link=wa_link(c['whatsapp'] or c['phone_mobile'],msg); mail_link=email_link(c['email'],c['name_ar'] or c['name_en'],msg)
  return render_template('company.html',c=c,its=its,users=users,wa_link=link,email_link=mail_link,is_admin=session.get('role')=='admin',return_to=session.get('companies_return_to') or url_for('companies'))
 
 @app.post('/company/<int:cid>/update')
