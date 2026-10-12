@@ -662,30 +662,37 @@ def company_directory_order_sql(alias='c'):
  {a}.id"""
 
 def dual_department_contact_ids(d,company_ids):
- """Historical, immutable recorded specialties; different actors and chronological order."""
+ """Highlight recorded Contractors -> Advertising contacts by distinct employees.
+
+ A known specialty_at_contact is authoritative. Legacy records without a
+ historical specialty may use the employee's *current* specialty for display,
+ without ever backfilling or changing those historical records.
+ """
  if not company_ids: return set()
  placeholders=','.join('?' for _ in company_ids)
- # NULL historical specialty is deliberately excluded: it cannot be proven from
- # the current user's role, which may have changed or been deleted.
  sql=f"""SELECT DISTINCT first.company_id
  FROM interactions first
  JOIN interactions second ON second.company_id=first.company_id
+ LEFT JOIN users contractor ON contractor.id=first.user_id
+ LEFT JOIN users advertiser ON advertiser.id=second.user_id
  WHERE first.company_id IN ({placeholders})
-   AND first.specialty_at_contact='contracting'
-   AND second.specialty_at_contact='advertising'
+   AND COALESCE(NULLIF(first.specialty_at_contact,''), contractor.specialty,'')='contracting'
+   AND COALESCE(NULLIF(second.specialty_at_contact,''), advertiser.specialty,'')='advertising'
    AND COALESCE(first.channel,'') <> 'تحديث حالة العميل'
    AND COALESCE(second.channel,'') <> 'تحديث حالة العميل'
    AND COALESCE(first.outcome,'') NOT IN ('','new','unreachable')
    AND COALESCE(second.outcome,'') NOT IN ('','new','unreachable')
    AND (second.contacted_at > first.contacted_at
         OR (second.contacted_at = first.contacted_at AND second.id > first.id))
-   AND ((COALESCE(first.actor_email_at_contact,'')<>''
-         AND COALESCE(second.actor_email_at_contact,'')<>''
-         AND LOWER(first.actor_email_at_contact)<>LOWER(second.actor_email_at_contact))
-        OR (COALESCE(first.actor_email_at_contact,'')=''
-            AND COALESCE(second.actor_email_at_contact,'')=''
-            AND first.user_id IS NOT NULL AND second.user_id IS NOT NULL
-            AND first.user_id<>second.user_id))"""
+   AND (
+     (COALESCE(first.actor_email_at_contact,'')<>''
+      AND COALESCE(second.actor_email_at_contact,'')<>''
+      AND LOWER(first.actor_email_at_contact)<>LOWER(second.actor_email_at_contact))
+     OR (first.user_id IS NOT NULL AND second.user_id IS NOT NULL
+         AND first.user_id<>second.user_id
+         AND (COALESCE(first.actor_email_at_contact,'')=''
+              OR COALESCE(second.actor_email_at_contact,'')=''))
+   )"""
  return {r[0] for r in d.execute(sql,company_ids).fetchall()}
 
 @app.get('/companies')
